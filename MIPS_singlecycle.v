@@ -139,6 +139,12 @@ always @(*) begin
             ALUop = 2'b01;
         end
 
+        6'b001000: begin
+            reg_write = 1 ;
+            alu_src = 1 ;
+            
+        end
+
         6'b000010: begin
             j = 1;
         end
