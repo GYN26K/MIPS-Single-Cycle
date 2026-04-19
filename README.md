@@ -173,3 +173,34 @@ The control unit is **purely combinational** and split into:
 
 ### j (Jump)
 PC is updated using:
+## PC Update Logic
+
+The next PC (`pc_next`) is selected from:
+
+### 1. Default
+
+PC + 4
+
+
+### 2. Branch
+
+PC + 4 + (SignImm << 2)
+
+(when `Branch = 1` and `Zero = 1`)
+
+### 3. Jump
+
+{ PC_plus_4[31:28], instr[25:0], 2'b00 }
+
+
+---
+
+## Summary
+
+This implementation strictly follows the **Harris & Harris single-cycle MIPS architecture**, emphasizing:
+
+- Simplicity  
+- Deterministic execution (1 cycle per instruction)  
+- Clear separation of datapath and control logic  
+
+The tradeoff is a **longer clock period**, determined by the slowest instruction (`lw`), making
