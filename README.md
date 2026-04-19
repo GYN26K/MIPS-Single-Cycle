@@ -1,91 +1,121 @@
 # MIPS Single-Cycle Processor (Harris & Harris Architecture)
 
 ## Overview
-
 This project implements a **Single-Cycle MIPS Processor** based on the architecture described in:
 
-Digital Design and Computer Architecture  
-David Harris and Sarah Harris
+> *Digital Design and Computer Architecture*  
+> *David Harris and Sarah Harris*
 
-The design follows the single-cycle datapath presented in the book. In this architecture, **each instruction completes in one clock cycle**. All instruction types (R-type, I-type, J-type) execute fully within a single rising clock edge.
+The design follows the **single-cycle datapath** presented in the textbook. In this architecture, each instruction completes in exactly **one clock cycle**.
 
-Because every instruction must complete in one cycle, the clock period is determined by the longest instruction path (typically `lw`).
+All instruction types (**R-type, I-type, J-type**) execute fully within a single rising clock edge.
+
+Because every instruction must complete in one cycle, the **clock period is determined by the longest instruction path (critical path)** — typically the `lw` instruction.
 
 ---
 
 ## Architecture Characteristics
 
-- Single-cycle datapath
-- One clock cycle per instruction
-- Separate Instruction Memory and Data Memory
-- Combinational control unit (Main Decoder + ALU Decoder)
-- No intermediate registers like IR, MDR, A, B, ALUOut (unlike multi-cycle)
+- **Single-cycle datapath** → CPI (Cycles Per Instruction) = 1  
+- **Harvard Architecture** → Separate Instruction Memory and Data Memory  
+- **Control Logic** → Purely combinational  
+  - Main Decoder  
+  - ALU Decoder  
+- **No Intermediate Registers**  
+  - No IR, MDR, ALUOut  
+  - Data flows directly within one cycle  
 
 ---
 
 ## Supported Instructions (Harris Subset)
 
 ### R-Type
-- add
-- sub
-- and
-- or
-- slt
+- `add`
+- `sub`
+- `and`
+- `or`
+- `slt`
 
 ### I-Type
-- lw
-- sw
-- beq
-- addi
+- `lw` (Load Word)
+- `sw` (Store Word)
+- `beq` (Branch if Equal)
+- `addi` (Add Immediate)
 
 ### J-Type
-- j
+- `j` (Jump)
 
-All instruction formats follow standard MIPS encoding.
+All instructions follow the standard **32-bit MIPS encoding**.
 
 ---
 
-## Datapath Components (As per Harris & Harris)
+## Datapath Components
 
 ### Core Components
-- Program Counter (PC)
-- Instruction Memory
-- Register File (32 × 32-bit)
-- ALU
-- Data Memory
-- Sign Extend
-- Shift Left 2 (for branch offset)
-- Adder (PC + 4)
-- Adder (Branch target calculation)
+- **Program Counter (PC)**  
+  32-bit register holding the current instruction address  
+
+- **Instruction Memory**  
+  Read-only memory (initialized via `program.hex`)  
+
+- **Register File**  
+  - 32 × 32-bit registers  
+  - Dual read ports  
+  - Single write port  
+
+- **ALU**  
+  Performs arithmetic and logical operations  
+
+- **Data Memory**  
+  Read/Write memory for data storage  
+
+- **Sign Extend**  
+  Converts 16-bit immediate → 32-bit  
+
+- **Shift Left 2**  
+  Used for branch and jump address calculation  
+
+- **Adders**
+  - PC + 4  
+  - Branch target computation  
 
 ---
 
 ## Key Multiplexers
 
-- RegDst
-- ALUSrc
-- MemtoReg
-- PCSrc
+- **RegDst** → Selects destination register (`rt` or `rd`)  
+- **ALUSrc** → Selects ALU operand (register or immediate)  
+- **MemtoReg** → Selects write-back source (ALU or memory)  
+- **PCSrc** → Selects next PC (PC+4 or branch target)  
 
 ---
 
 ## Control Unit Design
 
-The control unit is combinational and divided into:
+The control unit is **purely combinational** and split into:
 
-1. Main Decoder
-2. ALU Decoder
+### 1. Main Decoder
+- Takes **opcode**
+- Generates primary control signals
 
-### Main Control Signals
+### 2. ALU Decoder
+- Takes:
+  - `ALUOp`
+  - `funct` field (for R-type)
+- Outputs specific ALU control signal
 
-- RegWrite
-- RegDst
-- ALUSrc
-- Branch
-- MemWrite
-- MemtoReg
-- Jump
-- ALUOp
+---
+
+## Main Control Signals
+
+- `RegWrite`
+- `RegDst`
+- `ALUSrc`
+- `Branch`
+- `MemWrite`
+- `MemtoReg`
+- `Jump`
+- `ALUOp`
 
 ---
 
@@ -93,61 +123,53 @@ The control unit is combinational and divided into:
 
 ### ALUOp Values
 
-| ALUOp | Meaning |
-|-------|--------|
-| 00    | Add (lw, sw, addi) |
-| 01    | Subtract (beq) |
-| 10    | R-type (use funct field) |
+| ALUOp | Meaning                   |
+|------|---------------------------|
+| 00   | ADD (lw, sw, addi)        |
+| 01   | SUB (beq)                 |
+| 10   | R-type (use funct field)  |
 
-The ALU Decoder uses:
-- ALUOp
-- funct field (for R-type)
+### ALUControl Output
 
-to generate:
-- ALUControl signal
+| Code | Operation |
+|------|----------|
+| 000  | AND      |
+| 001  | OR       |
+| 010  | ADD      |
+| 110  | SUB      |
+| 111  | SLT      |
 
 ---
 
 ## Instruction Execution Flow
 
 ### R-Type
-- Read registers
-- ALU operation using funct field
-- Write result to rd
-
-### lw
-- Compute address (base + offset)
-- Read from Data Memory
-- Write to rt
-
-### sw
-- Compute address
-- Write register value to Data Memory
-
-### beq
-- Subtract rs and rt
-- If Zero = 1, update PC with branch target
-
-### j
-- PC updated using jump address:
-  
-  {PC[31:28], instr[25:0], 2'b00}
+1. Fetch instruction  
+2. Read `rs` and `rt`  
+3. ALU performs operation based on `funct`  
+4. Result written to `rd`  
 
 ---
 
-## PC Update Logic
+### lw (Load Word)
+1. Compute address: `rs + SignExt(offset)`  
+2. Read from Data Memory  
+3. Write to `rt`  
 
-Next PC is selected from:
+---
 
-1. PC + 4
-2. Branch target:
-   
-   PC + 4 + (SignImm << 2)
+### sw (Store Word)
+1. Compute address: `rs + SignExt(offset)`  
+2. Write `rt` value to Data Memory  
 
-3. Jump target
+---
 
-Branch is taken when:
-- Branch = 1
-- Zero = 1
+### beq (Branch if Equal)
+1. ALU computes `rs - rt`  
+2. If Zero flag = 1 → branch taken  
+3. PC updated to branch target  
 
+---
 
+### j (Jump)
+PC is updated using:
